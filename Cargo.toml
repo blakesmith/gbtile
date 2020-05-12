@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 png = "0.16"
 clap = "2.33"
+log = "0.4"
+simple_logger = "1.6"

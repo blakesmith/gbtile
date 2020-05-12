@@ -1,4 +1,12 @@
 use clap::{App, Arg};
+use log;
+use log::Level;
+use png::Decoder;
+use std::collections::BTreeSet;
+use std::fs::File;
+use std::io;
+
+const GB_UNIQUE_COLOR_COUNT: usize = 4;
 
 #[derive(Debug)]
 enum OutputType {
@@ -12,11 +20,126 @@ struct CommandArguments {
     pub output_type: OutputType,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
+struct RGB {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+struct DecodedImage {
+    image_data: Vec<RGB>,
+    unique_colors: BTreeSet<RGB>,
+}
+
+#[derive(Debug)]
+enum ImageReadError {
+    Png(png::DecodingError),
+    Io(io::Error),
+    UnsupportedColorType(png::ColorType),
+    TooManyColors,
+}
+
+impl From<io::Error> for ImageReadError {
+    fn from(err: io::Error) -> Self {
+        ImageReadError::Io(err)
+    }
+}
+
+impl From<png::DecodingError> for ImageReadError {
+    fn from(err: png::DecodingError) -> Self {
+        ImageReadError::Png(err)
+    }
+}
+
+fn read_image_data(info: png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>, ImageReadError> {
+    let mut image_data = Vec::new();
+    match info.color_type {
+        png::ColorType::RGB => {
+            for color in image_buf.chunks(3) {
+                let rgb = RGB {
+                    r: color[0],
+                    g: color[1],
+                    b: color[2],
+                };
+                image_data.push(rgb);
+            }
+        }
+        png::ColorType::RGBA => {
+            for color in image_buf.chunks(4) {
+                let rgb = RGB {
+                    r: color[0],
+                    g: color[1],
+                    b: color[2],
+                };
+                image_data.push(rgb);
+            }
+        }
+        png::ColorType::Grayscale => {
+            for color in image_buf {
+                let rgb = RGB {
+                    r: color,
+                    g: color,
+                    b: color,
+                };
+                image_data.push(rgb);
+            }
+        }
+        png::ColorType::GrayscaleAlpha => {
+            for color in image_buf.chunks(2) {
+                let rgb = RGB {
+                    r: color[0],
+                    g: color[0],
+                    b: color[0],
+                };
+                image_data.push(rgb);
+            }
+        }
+        color_type => {
+            return Err(ImageReadError::UnsupportedColorType(color_type));
+        }
+    }
+
+    Ok(image_data)
+}
+
+fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
+    let file = File::open(image_input)?;
+    let mut unique_colors = BTreeSet::new();
+    let decoder = Decoder::new(file);
+    let (info, mut png_reader) = decoder.read_info()?;
+
+    let mut image_buf = vec![0; info.buffer_size()];
+    png_reader.next_frame(&mut image_buf)?;
+    let image_data = read_image_data(info, image_buf)?;
+
+    log::debug!("Image data size is: {}", image_data.len());
+
+    for (i, color) in image_data.iter().enumerate() {
+        unique_colors.insert(*color);
+        if unique_colors.len() > GB_UNIQUE_COLOR_COUNT {
+            log::debug!("Unique colors are: {:?}, stopped at: {}", unique_colors, i);
+            return Err(ImageReadError::TooManyColors);
+        }
+    }
+
+    let decoded = DecodedImage {
+        image_data,
+        unique_colors,
+    };
+    Ok(decoded)
+}
+
 fn main() {
     let matches = App::new("Gameboy Tile Generator")
         .version("0.1")
         .author("Blake Smith <blakesmith0@gmail.com>")
         .about("Generate GBDK Game Boy tiles from PNG images")
+        .arg(
+            Arg::with_name("debug")
+                .help("Enable debug logging")
+                .short("d"),
+        )
         .arg(
             Arg::with_name("input")
                 .help("The PNG image to generate tiles from")
@@ -39,6 +162,11 @@ fn main() {
         )
         .get_matches();
 
+    if matches.is_present("debug") {
+        simple_logger::init_with_level(Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(Level::Info).unwrap();
+    }
     let output_type = match matches.value_of("output-type") {
         Some("gbdk") => OutputType::GBDK,
         _ => OutputType::GBDK,
@@ -49,6 +177,8 @@ fn main() {
         output: matches.value_of("output").unwrap().to_string(),
         output_type: output_type,
     };
+
+    let decoded_image = decode_image(&args.input).expect("Could not decode image");
 
     println!("Arguments are: {:?}", args);
 }
