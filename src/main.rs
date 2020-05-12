@@ -2,7 +2,7 @@ use clap::{App, Arg};
 use log;
 use log::Level;
 use png::Decoder;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fs::File;
 use std::io;
 
@@ -20,7 +20,7 @@ struct CommandArguments {
     pub output_type: OutputType,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Hash, Ord, Eq)]
 struct RGB {
     r: u8,
     g: u8,
@@ -39,7 +39,7 @@ impl RGB {
 
 struct DecodedImage {
     image_data: Vec<RGB>,
-    unique_colors: BTreeSet<RGB>,
+    color_numbers: HashMap<RGB, u8>,
 }
 
 #[derive(Debug)]
@@ -60,6 +60,14 @@ impl From<png::DecodingError> for ImageReadError {
     fn from(err: png::DecodingError) -> Self {
         ImageReadError::Png(err)
     }
+}
+
+fn rgbs_to_color_number(unique_colors: &BTreeSet<RGB>) -> HashMap<RGB, u8> {
+    let mut color_numbers = HashMap::new();
+    for (i, rgb) in unique_colors.iter().enumerate() {
+        color_numbers.insert(*rgb, i as u8);
+    }
+    color_numbers
 }
 
 fn read_image_data(info: png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>, ImageReadError> {
@@ -133,11 +141,12 @@ fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
             return Err(ImageReadError::TooManyColors);
         }
     }
-    log::debug!("Unique colors are: {:?}", unique_colors);
+    let color_numbers = rgbs_to_color_number(&unique_colors);
+    log::debug!("Color numbers are: {:?}", color_numbers);
 
     let decoded = DecodedImage {
         image_data,
-        unique_colors,
+        color_numbers,
     };
     Ok(decoded)
 }
