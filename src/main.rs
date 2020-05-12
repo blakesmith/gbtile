@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use std::fs::File;
 use std::io;
 
-const GB_UNIQUE_COLOR_COUNT: usize = 4;
+const GB_MAX_COLOR_COUNT: usize = 4;
 
 #[derive(Debug)]
 enum OutputType {
@@ -25,6 +25,16 @@ struct RGB {
     r: u8,
     g: u8,
     b: u8,
+}
+
+impl RGB {
+    fn round(&self) -> RGB {
+        RGB {
+            r: (self.r / 32) * 32,
+            g: (self.g / 32) * 32,
+            b: (self.b / 32) * 32,
+        }
+    }
 }
 
 struct DecodedImage {
@@ -53,16 +63,17 @@ impl From<png::DecodingError> for ImageReadError {
 }
 
 fn read_image_data(info: png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>, ImageReadError> {
+    log::debug!("PNG info: {:?}", info);
     let mut image_data = Vec::new();
     match info.color_type {
         png::ColorType::RGB => {
-            for color in image_buf.chunks(3) {
+            for (i, color) in image_buf.chunks(3).enumerate() {
                 let rgb = RGB {
                     r: color[0],
                     g: color[1],
                     b: color[2],
                 };
-                image_data.push(rgb);
+                image_data.push(rgb.round());
             }
         }
         png::ColorType::RGBA => {
@@ -72,7 +83,7 @@ fn read_image_data(info: png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>
                     g: color[1],
                     b: color[2],
                 };
-                image_data.push(rgb);
+                image_data.push(rgb.round());
             }
         }
         png::ColorType::Grayscale => {
@@ -82,7 +93,7 @@ fn read_image_data(info: png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>
                     g: color,
                     b: color,
                 };
-                image_data.push(rgb);
+                image_data.push(rgb.round());
             }
         }
         png::ColorType::GrayscaleAlpha => {
@@ -92,7 +103,7 @@ fn read_image_data(info: png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>
                     g: color[0],
                     b: color[0],
                 };
-                image_data.push(rgb);
+                image_data.push(rgb.round());
             }
         }
         color_type => {
@@ -117,11 +128,12 @@ fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
 
     for (i, color) in image_data.iter().enumerate() {
         unique_colors.insert(*color);
-        if unique_colors.len() > GB_UNIQUE_COLOR_COUNT {
-            log::debug!("Unique colors are: {:?}, stopped at: {}", unique_colors, i);
+        if unique_colors.len() > GB_MAX_COLOR_COUNT {
+            log::debug!("Unique colors are: {:?}, stopped at: {}", unique_colors, i,);
             return Err(ImageReadError::TooManyColors);
         }
     }
+    log::debug!("Unique colors are: {:?}", unique_colors);
 
     let decoded = DecodedImage {
         image_data,
