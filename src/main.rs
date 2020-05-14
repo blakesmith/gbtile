@@ -173,10 +173,9 @@ fn encode_tile(decoded_image: DecodedImage) -> Vec<u8> {
                 let mut low_byte = 0;
                 let mut high_byte = 0;
                 for tile_column in 0..8 {
-                    let pixel_index = ((column * 8 + tile_column)
+                    let pixel_index = (column * 8 + tile_column)
                         + ((decoded_image.info.width * tile_row)
-                            + (row * 8 * decoded_image.info.width)));
-                    log::debug!("Pixel index: {}", pixel_index);
+                            + (row * 8 * decoded_image.info.width));
                     let pixel = decoded_image.image_data[pixel_index as usize];
                     let color = decoded_image.lookup_color(&pixel);
                     low_byte |= (color & 0x01) << (PIXELS_PER_LINE - tile_column as u8 - 1);
