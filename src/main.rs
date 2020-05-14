@@ -187,7 +187,7 @@ fn write_tile(encoded_tile: &Vec<u8>, out_file: &str) -> Result<(), io::Error> {
         body.push(format!("    {}", formatted_bytes.join(",")));
     }
 
-    let formatted_result = format!("{}\n{}\n}};", preamble, body.join(",\n"));
+    let formatted_result = format!("{}\n{}\n}};\n", preamble, body.join(",\n"));
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
