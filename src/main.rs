@@ -3,8 +3,9 @@ use log;
 use log::Level;
 use png::Decoder;
 use std::collections::{BTreeSet, HashMap};
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io;
+use std::io::Write;
 
 const GB_MAX_COLOR_COUNT: usize = 4;
 
@@ -42,6 +43,12 @@ struct DecodedImage {
     color_numbers: HashMap<RGB, u8>,
 }
 
+impl DecodedImage {
+    fn lookup_color(&self, pixel: &RGB) -> u8 {
+        *self.color_numbers.get(&pixel).unwrap()
+    }
+}
+
 #[derive(Debug)]
 enum ImageReadError {
     Png(png::DecodingError),
@@ -75,7 +82,7 @@ fn read_image_data(info: png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>
     let mut image_data = Vec::new();
     match info.color_type {
         png::ColorType::RGB => {
-            for (i, color) in image_buf.chunks(3).enumerate() {
+            for color in image_buf.chunks(3) {
                 let rgb = RGB {
                     r: color[0],
                     g: color[1],
@@ -151,6 +158,45 @@ fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
     Ok(decoded)
 }
 
+const PIXELS_PER_LINE: u8 = 8;
+
+fn encode_tile(decoded_image: DecodedImage) -> Vec<u8> {
+    let mut tile = Vec::new();
+    for line in decoded_image.image_data.chunks(8) {
+        let mut low_byte = 0;
+        let mut high_byte = 0;
+        for (i, pixel) in line.iter().enumerate() {
+            let color = decoded_image.lookup_color(&pixel);
+            low_byte |= (color & 0x01) << (PIXELS_PER_LINE - i as u8 - 1);
+            high_byte |= ((color >> 1) & 0x01) << (PIXELS_PER_LINE - i as u8 - 1);
+        }
+        tile.push(low_byte);
+        tile.push(high_byte);
+    }
+    tile
+}
+
+fn write_tile(encoded_tile: &Vec<u8>, out_file: &str) -> Result<(), io::Error> {
+    let preamble = "unsigned char data[] = {";
+    let mut body = Vec::new();
+    for line in encoded_tile.chunks(16) {
+        let mut formatted_bytes = Vec::new();
+        for byte in line {
+            formatted_bytes.push(format!("{:#04X}", byte));
+        }
+        body.push(format!("    {}", formatted_bytes.join(",")));
+    }
+
+    let formatted_result = format!("{}\n{}\n}};", preamble, body.join(",\n"));
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(out_file)?;
+    file.write_all(formatted_result.as_bytes())?;
+    Ok(())
+}
+
 fn main() {
     let matches = App::new("Gameboy Tile Generator")
         .version("0.1")
@@ -200,6 +246,8 @@ fn main() {
     };
 
     let decoded_image = decode_image(&args.input).expect("Could not decode image");
+    let encoded_tile = encode_tile(decoded_image);
+    write_tile(&encoded_tile, &args.output).expect("Could not write out tile");
 
     println!("Arguments are: {:?}", args);
 }
