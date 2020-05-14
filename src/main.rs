@@ -39,6 +39,7 @@ impl RGB {
 }
 
 struct DecodedImage {
+    info: png::OutputInfo,
     image_data: Vec<RGB>,
     color_numbers: HashMap<RGB, u8>,
 }
@@ -77,7 +78,7 @@ fn rgbs_to_color_number(unique_colors: &BTreeSet<RGB>) -> HashMap<RGB, u8> {
     color_numbers
 }
 
-fn read_image_data(info: png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>, ImageReadError> {
+fn read_image_data(info: &png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB>, ImageReadError> {
     log::debug!("PNG info: {:?}", info);
     let mut image_data = Vec::new();
     match info.color_type {
@@ -137,7 +138,7 @@ fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
 
     let mut image_buf = vec![0; info.buffer_size()];
     png_reader.next_frame(&mut image_buf)?;
-    let image_data = read_image_data(info, image_buf)?;
+    let image_data = read_image_data(&info, image_buf)?;
 
     log::debug!("Image data size is: {}", image_data.len());
 
@@ -153,6 +154,7 @@ fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
 
     let decoded = DecodedImage {
         image_data,
+        info,
         color_numbers,
     };
     Ok(decoded)
@@ -161,17 +163,29 @@ fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
 const PIXELS_PER_LINE: u8 = 8;
 
 fn encode_tile(decoded_image: DecodedImage) -> Vec<u8> {
+    let rows = decoded_image.info.height / 8;
+    let columns = decoded_image.info.width / 8;
+    log::debug!("Tile rows: {}, columns: {}", rows, columns);
     let mut tile = Vec::new();
-    for line in decoded_image.image_data.chunks(8) {
-        let mut low_byte = 0;
-        let mut high_byte = 0;
-        for (i, pixel) in line.iter().enumerate() {
-            let color = decoded_image.lookup_color(&pixel);
-            low_byte |= (color & 0x01) << (PIXELS_PER_LINE - i as u8 - 1);
-            high_byte |= ((color >> 1) & 0x01) << (PIXELS_PER_LINE - i as u8 - 1);
+    for row in 0..rows {
+        for column in 0..columns {
+            for tile_row in 0..8 {
+                let mut low_byte = 0;
+                let mut high_byte = 0;
+                for tile_column in 0..8 {
+                    let pixel_index = ((column * 8 + tile_column)
+                        + ((decoded_image.info.width * tile_row)
+                            + (row * 8 * decoded_image.info.width)));
+                    log::debug!("Pixel index: {}", pixel_index);
+                    let pixel = decoded_image.image_data[pixel_index as usize];
+                    let color = decoded_image.lookup_color(&pixel);
+                    low_byte |= (color & 0x01) << (PIXELS_PER_LINE - tile_column as u8 - 1);
+                    high_byte |= ((color >> 1) & 0x01) << (PIXELS_PER_LINE - tile_column as u8 - 1);
+                }
+                tile.push(low_byte);
+                tile.push(high_byte);
+            }
         }
-        tile.push(low_byte);
-        tile.push(high_byte);
     }
     tile
 }
@@ -192,6 +206,7 @@ fn write_tile(encoded_tile: &Vec<u8>, out_file: &str) -> Result<(), io::Error> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(true)
         .open(out_file)?;
     file.write_all(formatted_result.as_bytes())?;
     Ok(())
