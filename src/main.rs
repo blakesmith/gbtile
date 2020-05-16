@@ -6,6 +6,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::Write;
+use std::path::Path;
 
 const GB_MAX_COLOR_COUNT: usize = 4;
 
@@ -43,6 +44,11 @@ struct DecodedImage {
     info: png::OutputInfo,
     image_data: Vec<RGB>,
     color_numbers: HashMap<RGB, u8>,
+}
+
+struct EncodedTile {
+    input_filename: String,
+    tile_data: Vec<u8>,
 }
 
 impl DecodedImage {
@@ -177,7 +183,7 @@ fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
 
 const PIXELS_PER_LINE: u8 = 8;
 
-fn encode_tile(decoded_image: DecodedImage) -> Vec<u8> {
+fn encode_tile(decoded_image: DecodedImage) -> EncodedTile {
     let rows = decoded_image.info.height / 8;
     let columns = decoded_image.info.width / 8;
     log::info!(
@@ -187,7 +193,7 @@ fn encode_tile(decoded_image: DecodedImage) -> Vec<u8> {
         columns,
         decoded_image.color_numbers.len()
     );
-    let mut tile = Vec::new();
+    let mut tile_data = Vec::new();
     for row in 0..rows {
         for column in 0..columns {
             for tile_row in 0..8 {
@@ -202,18 +208,31 @@ fn encode_tile(decoded_image: DecodedImage) -> Vec<u8> {
                     low_byte |= (color & 0x01) << (PIXELS_PER_LINE - tile_column as u8 - 1);
                     high_byte |= ((color >> 1) & 0x01) << (PIXELS_PER_LINE - tile_column as u8 - 1);
                 }
-                tile.push(low_byte);
-                tile.push(high_byte);
+                tile_data.push(low_byte);
+                tile_data.push(high_byte);
             }
         }
     }
-    tile
+
+    let input_filename = decoded_image.input_filename.clone();
+
+    EncodedTile {
+        input_filename,
+        tile_data,
+    }
 }
 
-fn write_tile(encoded_tile: &Vec<u8>, out_file: &str) -> Result<(), io::Error> {
-    let preamble = "unsigned char data[] = {";
+fn write_tile(encoded_tile: &EncodedTile, out_file: &str) -> Result<(), io::Error> {
+    let variable_name = Path::new(&encoded_tile.input_filename)
+        .file_stem()
+        .map(|stem| stem.to_string_lossy())
+        .expect(&format!(
+            "Invalid file name: {}",
+            encoded_tile.input_filename
+        ));
+    let preamble = format!("unsigned char {}[] = {{", variable_name);
     let mut body = Vec::new();
-    for line in encoded_tile.chunks(16) {
+    for line in encoded_tile.tile_data.chunks(16) {
         let mut formatted_bytes = Vec::new();
         for byte in line {
             formatted_bytes.push(format!("{:#04X}", byte));
