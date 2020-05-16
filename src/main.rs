@@ -70,10 +70,23 @@ impl From<png::DecodingError> for ImageReadError {
     }
 }
 
+fn map_4bit(rgb: &RGB) -> u8 {
+    let sum: u16 = rgb.r as u16 + rgb.g as u16 + rgb.b as u16;
+    if sum <= 191 {
+        3
+    } else if sum > 191 && sum <= 382 {
+        2
+    } else if sum > 382 && sum <= 573 {
+        1
+    } else {
+        0
+    }
+}
+
 fn rgbs_to_color_number(unique_colors: &BTreeSet<RGB>) -> HashMap<RGB, u8> {
     let mut color_numbers = HashMap::new();
-    for (i, rgb) in unique_colors.iter().enumerate() {
-        color_numbers.insert(*rgb, i as u8);
+    for rgb in unique_colors.iter() {
+        color_numbers.insert(*rgb, map_4bit(rgb));
     }
     color_numbers
 }
