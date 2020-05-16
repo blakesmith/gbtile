@@ -39,6 +39,7 @@ impl RGB {
 }
 
 struct DecodedImage {
+    input_filename: String,
     info: png::OutputInfo,
     image_data: Vec<RGB>,
     color_numbers: HashMap<RGB, u8>,
@@ -166,6 +167,7 @@ fn decode_image(image_input: &str) -> Result<DecodedImage, ImageReadError> {
     log::debug!("Color numbers are: {:?}", color_numbers);
 
     let decoded = DecodedImage {
+        input_filename: image_input.to_string(),
         image_data,
         info,
         color_numbers,
@@ -178,7 +180,13 @@ const PIXELS_PER_LINE: u8 = 8;
 fn encode_tile(decoded_image: DecodedImage) -> Vec<u8> {
     let rows = decoded_image.info.height / 8;
     let columns = decoded_image.info.width / 8;
-    log::debug!("Tile rows: {}, columns: {}", rows, columns);
+    log::info!(
+        "File: {}, Tile rows: {}, columns: {}, unique colors: {}",
+        decoded_image.input_filename,
+        rows,
+        columns,
+        decoded_image.color_numbers.len()
+    );
     let mut tile = Vec::new();
     for row in 0..rows {
         for column in 0..columns {
@@ -276,5 +284,5 @@ fn main() {
     let encoded_tile = encode_tile(decoded_image);
     write_tile(&encoded_tile, &args.output).expect("Could not write out tile");
 
-    println!("Arguments are: {:?}", args);
+    log::debug!("Arguments are: {:?}", args);
 }
