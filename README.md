@@ -16,7 +16,13 @@ That you can use in your Game Boy programs like:
 
 Install [cargo, and rust](https://rustup.rs/)
 
-Then:
+### From cargo
+
+```
+cargo install gbtile
+```
+
+### From source
 
 ```
 $ git clone git@github.com:blakesmith/gbtile.git
