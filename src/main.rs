@@ -77,7 +77,7 @@ impl From<png::DecodingError> for ImageReadError {
     }
 }
 
-fn map_4bit(rgb: &RGB) -> u8 {
+fn map_2bit(rgb: &RGB) -> u8 {
     let sum: u16 = rgb.r as u16 + rgb.g as u16 + rgb.b as u16;
     if sum <= 191 {
         3
@@ -93,7 +93,7 @@ fn map_4bit(rgb: &RGB) -> u8 {
 fn rgbs_to_color_number(unique_colors: &BTreeSet<RGB>) -> HashMap<RGB, u8> {
     let mut color_numbers = HashMap::new();
     for rgb in unique_colors.iter() {
-        color_numbers.insert(*rgb, map_4bit(rgb));
+        color_numbers.insert(*rgb, map_2bit(rgb));
     }
     color_numbers
 }
