@@ -12,12 +12,14 @@
         pkgs = nixpkgs.legacyPackages.${system};
       in
         rec {
-          packages.${system}.gbtile = pkgs.callPackage ./default.nix {};
+          packages = {
+            gbtile = pkgs.callPackage ./default.nix {};
+          };
           apps.${system}.gbtile = {
             type = "app";
-            program = "${packages.${system}.gbtile}/bin/gbtile";
+            program = "${packages.gbtile}/bin/gbtile";
           };
-          defaultPackage = packages.${system}.gbtile;
+          defaultPackage = packages.gbtile;
         }
     );
 }
