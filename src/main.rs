@@ -10,9 +10,10 @@ use std::path::Path;
 
 const GB_MAX_COLOR_COUNT: usize = 4;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 enum OutputType {
-    GBDK,
+    Gbdk,
+    Rgbds,
 }
 
 #[derive(Debug)]
@@ -222,14 +223,7 @@ fn encode_tile(decoded_image: DecodedImage) -> EncodedTile {
     }
 }
 
-fn write_tile(encoded_tile: &EncodedTile, out_file: &str) -> Result<(), io::Error> {
-    let variable_name = Path::new(&encoded_tile.input_filename)
-        .file_stem()
-        .map(|stem| stem.to_string_lossy())
-        .expect(&format!(
-            "Invalid file name: {}",
-            encoded_tile.input_filename
-        ));
+fn write_tile_gbdk(variable_name: &str, encoded_tile: &EncodedTile) -> String {
     let preamble = format!("unsigned char {}[] = {{", variable_name);
     let mut body = Vec::new();
     for line in encoded_tile.tile_data.chunks(16) {
@@ -240,7 +234,43 @@ fn write_tile(encoded_tile: &EncodedTile, out_file: &str) -> Result<(), io::Erro
         body.push(format!("    {}", formatted_bytes.join(",")));
     }
 
-    let formatted_result = format!("{}\n{}\n}};\n", preamble, body.join(",\n"));
+    format!("{}\n{}\n}};\n", preamble, body.join(",\n"))
+}
+
+fn write_tile_rgbds(variable_name: &str, encoded_tile: &EncodedTile) -> String {
+    let end_symbol = format!("{}_end", variable_name);
+    let preamble = format!(
+        "SECTION \"Tiles for '{}'\", ROM0\n\nEXPORT {}, {}\n\n{}:",
+        variable_name, variable_name, end_symbol, variable_name
+    );
+    let mut body = Vec::new();
+    for line in encoded_tile.tile_data.chunks(16) {
+        let mut formatted_bytes = Vec::new();
+        for byte in line {
+            formatted_bytes.push(format!("${:02x}", byte));
+        }
+        body.push(format!("    db {}", formatted_bytes.join(",")));
+    }
+
+    format!("{}\n{}\n{}:\n", preamble, body.join(",\n"), end_symbol)
+}
+
+fn write_tile(
+    encoded_tile: &EncodedTile,
+    out_file: &str,
+    output_type: OutputType,
+) -> Result<(), io::Error> {
+    let variable_name = Path::new(&encoded_tile.input_filename)
+        .file_stem()
+        .map(|stem| stem.to_string_lossy())
+        .expect(&format!(
+            "Invalid file name: {}",
+            encoded_tile.input_filename
+        ));
+    let formatted_result = match output_type {
+        OutputType::Gbdk => write_tile_gbdk(&variable_name, encoded_tile),
+        OutputType::Rgbds => write_tile_rgbds(&variable_name, encoded_tile),
+    };
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -253,9 +283,9 @@ fn write_tile(encoded_tile: &EncodedTile, out_file: &str) -> Result<(), io::Erro
 
 fn main() {
     let matches = App::new("Gameboy Tile Generator")
-        .version("0.1")
+        .version("0.2.0")
         .author("Blake Smith <blakesmith0@gmail.com>")
-        .about("Generate GBDK Game Boy tiles from PNG images")
+        .about("Generate GBDK or RGBDS Game Boy tiles from PNG images")
         .arg(
             Arg::with_name("debug")
                 .help("Enable debug logging")
@@ -263,21 +293,21 @@ fn main() {
         )
         .arg(
             Arg::with_name("input")
-                .help("The PNG image to generate tiles from")
+                .help("The PNG image to generate tiles from. Example: 'image.png'")
                 .short("i")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
             Arg::with_name("output")
-                .help("The output file to generate")
+                .help("The output file to generate. Usually something like 'tiles.h' for GBDK output, or 'tiles.asm' for RGBDS")
                 .short("o")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
             Arg::with_name("output-type")
-                .help("The output type. Defaults to 'gbdk'")
+                .help("The output type. Either 'gbdk' or 'rgbds'. Defaults to 'gbdk'")
                 .takes_value(true)
                 .short("t"),
         )
@@ -289,8 +319,9 @@ fn main() {
         simple_logger::init_with_level(Level::Info).unwrap();
     }
     let output_type = match matches.value_of("output-type") {
-        Some("gbdk") => OutputType::GBDK,
-        _ => OutputType::GBDK,
+        Some("gbdk") => OutputType::Gbdk,
+        Some("rgbds") => OutputType::Rgbds,
+        _ => OutputType::Gbdk,
     };
 
     let args = CommandArguments {
@@ -301,7 +332,7 @@ fn main() {
 
     let decoded_image = decode_image(&args.input).expect("Could not decode image");
     let encoded_tile = encode_tile(decoded_image);
-    write_tile(&encoded_tile, &args.output).expect("Could not write out tile");
+    write_tile(&encoded_tile, &args.output, args.output_type).expect("Could not write out tile");
 
     log::debug!("Arguments are: {:?}", args);
 }

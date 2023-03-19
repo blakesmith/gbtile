@@ -2,9 +2,11 @@
 name = "gbtile"
 description = "A small command line utility to convert PNG images to GBDK compliant Game Boy tiles"
 license = "MIT"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Blake Smith <blakesmith0@gmail.com>"]
 edition = "2018"
+repository = "https://crates.io/crates/gbtile"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
