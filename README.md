@@ -35,10 +35,6 @@ The `gbtile` executable will be installed in `$HOME/.cargo/bin/` by default.
 
 ## Usage
 
-Gameboy Tile Generator 0.2.0
-Blake Smith <blakesmith0@gmail.com>
-Generate GBDK or RGBDS Game Boy tiles from PNG images
-
 ```
 USAGE:
     gbtile [FLAGS] [OPTIONS] -i <input> -o <output>
@@ -108,6 +104,7 @@ ascii:
     ...
     db $00,$00,$28,$28,$00,$00,$44,$44,$44,$44,$28,$28,$10,$10,$60,$60
 ascii_end:
+```
 
 You can assemble the file along with the rest of your project with something like:
 
