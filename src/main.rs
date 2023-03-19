@@ -33,9 +33,9 @@ struct RGB {
 impl RGB {
     fn round(&self) -> RGB {
         RGB {
-            r: (self.r / 32) * 32,
-            g: (self.g / 32) * 32,
-            b: (self.b / 32) * 32,
+            r: (self.r / 48) * 48,
+            g: (self.g / 48) * 48,
+            b: (self.b / 48) * 48,
         }
     }
 }
@@ -78,23 +78,10 @@ impl From<png::DecodingError> for ImageReadError {
     }
 }
 
-fn map_2bit(rgb: &RGB) -> u8 {
-    let sum: u16 = rgb.r as u16 + rgb.g as u16 + rgb.b as u16;
-    if sum <= 191 {
-        3
-    } else if sum > 191 && sum <= 382 {
-        2
-    } else if sum > 382 && sum <= 573 {
-        1
-    } else {
-        0
-    }
-}
-
 fn rgbs_to_color_number(unique_colors: &BTreeSet<RGB>) -> HashMap<RGB, u8> {
     let mut color_numbers = HashMap::new();
-    for rgb in unique_colors.iter() {
-        color_numbers.insert(*rgb, map_2bit(rgb));
+    for (i, rgb) in unique_colors.iter().rev().enumerate() {
+        color_numbers.insert(*rgb, i as u8);
     }
     color_numbers
 }
@@ -110,6 +97,7 @@ fn read_image_data(info: &png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB
                     g: color[1],
                     b: color[2],
                 };
+                log::debug!("Original RGB is: {:?}", rgb);
                 image_data.push(rgb.round());
             }
         }
@@ -120,6 +108,7 @@ fn read_image_data(info: &png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB
                     g: color[1],
                     b: color[2],
                 };
+                log::debug!("Original RGB is: {:?}", rgb);
                 image_data.push(rgb.round());
             }
         }
@@ -130,6 +119,7 @@ fn read_image_data(info: &png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB
                     g: color,
                     b: color,
                 };
+                log::debug!("Original RGB is: {:?}", rgb);
                 image_data.push(rgb.round());
             }
         }
@@ -140,6 +130,7 @@ fn read_image_data(info: &png::OutputInfo, image_buf: Vec<u8>) -> Result<Vec<RGB
                     g: color[0],
                     b: color[0],
                 };
+                log::debug!("Original RGB is: {:?}", rgb);
                 image_data.push(rgb.round());
             }
         }
