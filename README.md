@@ -33,6 +33,18 @@ $ cargo install --path .
 
 The `gbtile` executable will be installed in `$HOME/.cargo/bin/` by default.
 
+### From nix
+
+If you use the nix package manager, from the root of this repo, with flakes enabled:
+
+```
+$ nix build
+```
+
+You can also depend on it from another repo via the flake directly.
+
+The `gbtile` executable will be in `result/bin/gbtile`.
+
 ## Usage
 
 ```
